@@ -12,6 +12,7 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 
 ## Learning Log
 - [x] **01:** Blinking LED
+- [x] **02:** Debounce button using Timer and Interrupt
 
 ---
 *Minh*

@@ -14,6 +14,7 @@ int main(void)
     P1DIR |= LED0;
     P1OUT |= LED0;
 
+
     while (1) {
         P1OUT ^= LED0;
         __delay_cycles(1000000);
