@@ -10,5 +10,8 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 * **Stage**: Beginner / Learning
 * **Goal**: To write bare-metal drivers without relying on existing libraries.
 
+## Learning Log
+- [x] **01:** Blinking LED
+
 ---
 *Minh*
