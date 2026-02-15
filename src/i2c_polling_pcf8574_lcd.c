@@ -81,6 +81,14 @@ static void lcd_send_nibble(uint8_t data, bool mode)
     __delay_cycles(2000); // delay 2ms
 }
 
+static void lcd_send_string(char *p, bool mode)
+{
+    while (*p != '\0') {
+        lcd_send_byte(*p, mode);
+        p++;
+    }
+}
+
 int main(void)
 {
     WDTCTL = WDTPW + WDTHOLD; // stop Watch Dog Timer
@@ -134,24 +142,11 @@ int main(void)
     // entry mode set
     lcd_send_byte(0x06, 0);
 
-    // sending my name
-    lcd_send_byte('M', 1);
-    lcd_send_byte('i', 1);
-    lcd_send_byte('n', 1);
-    lcd_send_byte('h', 1);
-    lcd_send_byte(0xC0, 0); // go to new line
-    lcd_send_byte('1', 1);
-    lcd_send_byte('5', 1);
-    lcd_send_byte('/', 1);
-    lcd_send_byte('0', 1);
-    lcd_send_byte('2', 1);
-    lcd_send_byte('/', 1);
-    lcd_send_byte('2', 1);
-    lcd_send_byte('0', 1);
-    lcd_send_byte('2', 1);
-    lcd_send_byte('6', 1);
-    lcd_send_byte(' ', 1);
-    lcd_send_byte('!', 1);
-
-    while (1) { }
+    while (1) {
+        lcd_send_string("I love my family", 1);
+        __delay_cycles(2000000); // delay 2s
+        lcd_send_byte(0x01, 0); // clear display
+        lcd_send_byte(0x02, 0); // back to the line
+        __delay_cycles(1000000); // delay 1s
+    }
 }
