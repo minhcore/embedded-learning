@@ -17,5 +17,7 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
   <p align="center">
   <img src="docs/i2c_polling_pcf8574_lcd_.jpg" width="650">
 </p>
+
+- [x] **04:** Display LCD by using PCF8574(I/O expander) and I2C interrupt 
 ---
 *Minh*
