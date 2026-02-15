@@ -15,9 +15,7 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 - [x] **02:** Debounce button using Timer and Interrupt
 - [x] **03:** Display LCD by using PCF8574 (I/O expander) and I2C polling
   <p align="center">
-    <img src="docs/i2c_polling_pcf8574_lcd.jpg" alt="LCD I2C Display" width="600">
-    <br>
-    Result: LCD 1602A with PCF8574 via I2C
-  </p>
+  <img src="docs/i2c_polling_pcf8574_lcd.jpg" width="600">
+</p>
 ---
 *Minh*
