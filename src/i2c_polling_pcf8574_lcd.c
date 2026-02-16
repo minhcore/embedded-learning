@@ -20,11 +20,21 @@
 static void pcf_sending(uint8_t data)
 {
     UCB0CTL1 |= UCTXSTT; // Start
-    while (!(IFG2 & UCB0TXIFG)) { } // wait for UCB0TXIFG to set
-    UCB0TXBUF = data;
-    while (!(IFG2 & UCB0TXIFG)) { } // wait for UCB0TXIFG to set
-    UCB0CTL1 |= UCTXSTP; // Stop
-    while (UCB0CTL1 & UCTXSTP) { } // wait for stop bit completed
+    while (!(IFG2 & UCB0TXIFG) && !(UCB0STAT & UCNACKIFG)) { } // wait for UCB0TXIFG to set or NACK
+    if (UCB0STAT & UCNACKIFG) {
+        UCB0CTL1 |= UCTXSTP;
+        UCB0STAT &= ~UCNACKIFG;
+    } else {
+        UCB0TXBUF = data;
+        while (!(IFG2 & UCB0TXIFG) && !(UCB0STAT & UCNACKIFG)) { } // wait for UCB0TXIFG to set
+        if (UCB0STAT & UCNACKIFG) {
+            UCB0CTL1 |= UCTXSTP;
+            UCB0STAT &= ~UCNACKIFG;
+        } else {
+            UCB0CTL1 |= UCTXSTP;
+        }
+        while (UCB0CTL1 & UCTXSTP) { } // wait for stop bit completed
+    }
 }
 
 static void lcd_send_byte(uint8_t byte, bool mode)
@@ -118,6 +128,8 @@ int main(void)
     P1SEL2 |= SCL_PIN + SDA_PIN;
     // Clear UCSWRST
     UCB0CTL1 &= ~UCSWRST;
+    // Enable NACK interrupt
+    UCB0I2CIE |= UCNACKIE;
 
     // init lcd
     lcd_send_nibble(0x03, 0);
