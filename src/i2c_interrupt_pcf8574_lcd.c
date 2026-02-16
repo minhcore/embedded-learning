@@ -32,6 +32,7 @@ static void pcf_sending(uint8_t data)
     state = SENDING;
     byte = data;
     UCB0CTL1 |= UCTXSTT; // start bit
+    IE2 |= UCB0TXIE;
     __bis_SR_register(GIE + LPM0_bits); // go to sleep
 }
 
@@ -118,6 +119,10 @@ int main(void)
     P2DIR = 0xFF;
     P2OUT = 0x00;
 
+    // led error NACK init
+    P1DIR |= BIT0;
+    P1OUT &= ~BIT0;
+
     // i2c init
     // set UCSWRST to initialize the USCI Module
     UCB0CTL1 |= UCSWRST;
@@ -132,9 +137,9 @@ int main(void)
     P1SEL2 |= SCL_PIN + SDA_PIN;
     // Clear UCSWRST
     UCB0CTL1 &= ~UCSWRST;
-    // Enable Interrupt and clear interrupt flag
+    // clear interrupt flag and enable NACK interrupt
+    UCB0I2CIE |= UCNACKIE;
     IFG2 &= ~UCB0TXIFG;
-    IE2 |= UCB0TXIE;
 
     __bis_SR_register(GIE);
 
@@ -170,7 +175,7 @@ int main(void)
 }
 
 #pragma vector = USCIAB0TX_VECTOR
-__interrupt void i2c_isr(void)
+__interrupt void i2c_tx_isr(void)
 {
     if (IFG2 & UCB0TXIFG) {
         switch (state) {
@@ -181,10 +186,22 @@ __interrupt void i2c_isr(void)
         case STOP:
             UCB0CTL1 |= UCTXSTP; // stop bit
             state = SENDING;
-            IFG2 &= ~UCB0TXIFG; // clear interrupt flag because if we don't, the interrupt flag will
-                                // never turn off
+            IE2 &= ~UCB0TXIE; // disable interrupt to prevent loop isr (stop won't clear interrupt )
             __bic_SR_register_on_exit(LPM0_bits);
             break;
         }
+    }
+}
+
+#pragma vector = USCIAB0RX_VECTOR
+__interrupt void i2c_rx_isr(void)
+{
+    if (UCB0STAT & UCNACKIFG) {
+        UCB0CTL1 |= UCTXSTP; // stop bit
+        UCB0STAT &= ~UCNACKIFG; // clear flag
+        state = SENDING;
+        P1OUT |= BIT0;
+        __bic_SR_register_on_exit(LPM0_bits);
+        return;
     }
 }
