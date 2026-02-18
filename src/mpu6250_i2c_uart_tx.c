@@ -53,7 +53,20 @@ void i2c_read(uint8_t addr, uint8_t byte_count, volatile uint8_t *data)
     __bis_SR_register(LPM0_bits + GIE);
 }
 
-void uart_write_char(char c) { }
+void uart_write_char(char c)
+{
+    UCA0TXBUF = c; // load data into buffer
+    IE2 |= UCA0TXIE; // enable uart_tx interrupt
+    __bis_SR_register(LPM0_bits + GIE);
+}
+
+void uart_write_string(char *c)
+{
+    while (*c != '\0') {
+        uart_write_char(*c);
+        c++;
+    }
+}
 
 int main(void)
 {
@@ -127,6 +140,7 @@ int main(void)
         __delay_cycles(10000);
     */
         if (tick - previous_tick >= 1000) { // 1000 tick = 1s
+            uart_write_string("Hello world! \n\r");
             P1OUT ^= BIT0;
             previous_tick = tick;
         }
@@ -159,6 +173,8 @@ __interrupt void i2c_uart_tx_isr(void)
             __bic_SR_register_on_exit(LPM0_bits);
         }
     } else if ((IFG2 & UCA0TXIFG) && (IE2 & UCA0TXIE)) { // interrupt by transmiting uart
+        IE2 &= ~UCA0TXIE; // disable tx interrupt;
+        __bic_SR_register_on_exit(LPM0_bits);
     }
 }
 
