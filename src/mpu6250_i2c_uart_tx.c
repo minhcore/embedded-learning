@@ -6,37 +6,39 @@
 #define SDA_PIN BIT7
 #define UART_TX_PIN BIT2
 
-typedef enum {
-    SENDING,
-    STOP
-} i2c_state;
-
 volatile uint8_t raw_data[6];
-volatile i2c_state state = SENDING;
-volatile uint8_t tx_byte;
-volatile uint8_t counter;
-volatile uint8_t *pointer;
-volatile bool tx_send_stop;
+volatile uint8_t rx_counter;
+volatile uint8_t *rx_pointer;
+volatile uint8_t tx_counter;
+volatile uint8_t *tx_pointer;
 volatile uint16_t tick;
+volatile uint16_t previous_tick;
+volatile bool mpu_data_ready;
+volatile int16_t x_acc;
+volatile int16_t y_acc;
+volatile int16_t z_acc;
+volatile uint8_t power_on_data[2] = { 0x6B, 0x00 };
+volatile uint8_t register_read = 0x3B;
 
-void i2c_write(uint8_t addr, uint8_t data)
+void i2c_write(uint8_t addr, uint8_t byte_count, volatile uint8_t *data)
 {
     while (UCB0STAT & UCBBUSY) { } // wait for bus busy
-    tx_byte = data;
-    state = SENDING;
+    tx_pointer = data;
+    tx_counter = byte_count;
+    UCB0CTL1 |= UCTR; // transmitter mode
     UCB0I2CSA = addr; // set slave address
     __disable_interrupt();
-    UCB0CTL1 |= UCTXSTT + UCTR; // send start bit and transmitter
+    UCB0CTL1 |= UCTXSTT; // start bit
     IE2 |= UCB0TXIE; // enable tx_interrupt
     IE2 &= ~UCB0RXIE; // disable rx_interrupt
-    __bis_SR_register(LPM0_bits + GIE); // cpu goes to sleep
+    __bis_SR_register(LPM0_bits + GIE);
 }
 
 void i2c_read(uint8_t addr, uint8_t byte_count, volatile uint8_t *data)
 {
-    while (UCB0STAT & UCBBUSY) { }
-    pointer = data;
-    counter = byte_count;
+    while (UCB0STAT & UCBBUSY) { } // wait for bus busy
+    rx_pointer = data;
+    rx_counter = byte_count;
     UCB0CTL1 &= ~UCTR; // receiver mode
     UCB0I2CSA = addr; // set slave address
     __disable_interrupt();
@@ -70,7 +72,6 @@ void uart_write_string(char *c)
 
 int main(void)
 {
-    uint16_t previous_tick = 0;
 
     WDTCTL = WDTPW + WDTHOLD; // stop Watch Dog Timer
 
@@ -83,7 +84,8 @@ int main(void)
     DCOCTL = CALDCO_8MHZ;
 
     // init all unused pin to prevent floating
-    P1DIR = 0xFF;
+    // 0x3F = 0011_1111
+    P1DIR = 0x3F;
     P1OUT = 0x00;
     P2DIR = 0xFF;
     P2OUT = 0x00;
@@ -131,45 +133,48 @@ int main(void)
 
     UCA0CTL1 &= ~UCSWRST;
 
-    _bis_SR_register(GIE);
+    previous_tick = 0;
+
+    __disable_interrupt();
+
+    i2c_write(0x68, 2, power_on_data); // wake up the mpu chip
+
+    __bis_SR_register(GIE);
 
     while (1) {
-        /*
-        i2c_write(0x68, 0x3B);
-        i2c_read(0x68, 1, raw_data);
-        __delay_cycles(10000);
-    */
+
         if (tick - previous_tick >= 1000) { // 1000 tick = 1s
-            uart_write_string("Hello world! \n\r");
-            P1OUT ^= BIT0;
             previous_tick = tick;
+
+            i2c_write(0x68, 1, &register_read);
+            i2c_read(0x68, 6, raw_data);
+            x_acc = ((int16_t)raw_data[0] << 8) | raw_data[1];
+            y_acc = ((int16_t)raw_data[2] << 8) | raw_data[3];
+            z_acc = ((int16_t)raw_data[4] << 8) | raw_data[5];
+            P1OUT ^= BIT0;
         }
     }
 }
-
 #pragma vector = USCIAB0TX_VECTOR
 __interrupt void i2c_uart_tx_isr(void)
 {
     if ((IFG2 & UCB0TXIFG) && (IE2 & UCB0TXIE)) { // interrupt by transmiting i2c
-        switch (state) {
-        case SENDING:
-            UCB0TXBUF = tx_byte; // load data into buffer
-            state = STOP;
-            break;
-        case STOP:
-            UCB0CTL1 |= UCTXSTP; // stop bit
-            state = SENDING;
-            IE2 &= ~UCB0TXIE; // disable interrupt to prevent loop isr (stop won't clear interrupt )
+        if (tx_counter > 0) {
+            UCB0TXBUF = *tx_pointer++;
+            tx_counter--;
+        } else {
+            UCB0CTL1 |= UCTXSTP;
+            IE2 &= ~UCB0TXIE;
             __bic_SR_register_on_exit(LPM0_bits);
-            break;
         }
     } else if ((IFG2 & UCB0RXIFG) && (IE2 & UCB0RXIE)) { // interupt by recieving i2c
-        *pointer++ = UCB0RXBUF;
-        counter--;
-        if (counter == 1) {
+        *rx_pointer++ = UCB0RXBUF;
+        rx_counter--;
+        if (rx_counter == 1) {
             while (UCB0CTL1 & UCTXSTT) { }
             UCB0CTL1 |= UCTXSTP; // send stop bit
-        } else if (counter == 0) {
+        } else if (rx_counter == 0) {
+            IE2 &= ~UCB0RXIE;
             __bic_SR_register_on_exit(LPM0_bits);
         }
     } else if ((IFG2 & UCA0TXIFG) && (IE2 & UCA0TXIE)) { // interrupt by transmiting uart
@@ -184,8 +189,8 @@ __interrupt void i2c_error_isr(void)
     if (UCB0STAT & UCNACKIFG) {
         UCB0CTL1 |= UCTXSTP; // stop bit
         UCB0STAT &= ~UCNACKIFG; // clear flag
-        state = SENDING;
         P1OUT |= BIT0;
+        IE2 &= ~(UCB0TXIE | UCB0RXIE);
         __bic_SR_register_on_exit(LPM0_bits);
         return;
     }
