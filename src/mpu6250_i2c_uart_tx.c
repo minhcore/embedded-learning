@@ -13,7 +13,6 @@ volatile uint8_t tx_counter;
 volatile uint8_t *tx_pointer;
 volatile uint16_t tick;
 volatile uint16_t previous_tick;
-volatile bool mpu_data_ready;
 volatile int16_t x_acc;
 volatile int16_t y_acc;
 volatile int16_t z_acc;
