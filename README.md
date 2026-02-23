@@ -21,9 +21,9 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 - [x] **04:** Display LCD by using PCF8574(I/O expander) and I2C interrupt 
 - [x] **05:** Reading accelerator value from mpu6500 using I2C and UART
 <p align="center">
-  <img src="docs/mpu_6500_terminal.png" width="45%">
+  <img src="docs/mpu_6500_terminal.png" height="400%">
   &nbsp;&nbsp;
-  <img src="docs/mpu_6500_breadboard.jpg" width="45%">
+  <img src="docs/mpu_6500_breadboard.jpg" height="400%">
 </p>
 
 ---
