@@ -181,7 +181,7 @@ int main(void)
             y_acc = ((int16_t)raw_data[2] << 8) | raw_data[3];
             z_acc = ((int16_t)raw_data[4] << 8) | raw_data[5];
 
-            sprintf(buf, "X:%d Y:%d Z:%d\n\r", x_acc, y_acc, z_acc);
+            sprintf(buf, "X:%d\tY:%d\tZ:%d\n\r", x_acc, y_acc, z_acc);
             uart_write_string(buf);
         }
     }
