@@ -1,6 +1,6 @@
 BasedOnStyle: WebKit
 Language: Cpp
-ColumnLimit: 100
+ColumnLimit: 150
 PointerBindsToType: false
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeBraces: Custom
