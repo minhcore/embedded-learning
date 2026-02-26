@@ -10,7 +10,7 @@
 
 #define INA226_AVG_128 (0x04 << 9) // The number of samples that are collected and averaged
 
-#define INA226_VBUSCT_1MS1 (0x074 << 6) // Sets the conversion time for the bus voltage measurement
+#define INA226_VBUSCT_1MS1 (0x04 << 6) // Sets the conversion time for the bus voltage measurement
 
 #define INA226_VSHCT_1MS1 (0x04 << 3) // Sets the conversion time for the shunt voltage measurement
 
@@ -25,6 +25,8 @@
 #define INA226_POWER_REG (0x03)
 
 #define INA226_CURRENT_REG (0x04)
+
+#define OLED_ADDR 0x3C
 
 typedef enum {
     I2C_IDLE,
@@ -66,6 +68,7 @@ volatile ina226_mode_t ina226_current_mode;
 
 void system_init(void);
 void unused_pins_init(void);
+void i2c_bus_recovery(void);
 void i2c_init(void);
 void i2c_read(uint8_t addr, uint8_t byte_cnt, uint8_t *data, bool stop);
 void i2c_write(uint8_t addr, uint8_t byte_cnt, uint8_t *data, bool stop);
@@ -73,15 +76,20 @@ void ina226_set_mode(ina226_mode_t mode);
 int16_t ina226_read_voltage_raw(void);
 int16_t ina226_read_current_raw(void);
 int16_t ina226_read_power_raw(void);
+void oled_init(void);
+void oled_clear_display(void);
 
 int main(void)
 {
     system_init();
+    // i2c_bus_recovery();
     i2c_init();
     unused_pins_init();
-    ina226_set_mode(INA226_MODE_150MA);
+    // ina226_set_mode(INA226_MODE_150MA);
+    oled_init();
     __enable_interrupt(); // for system tick (timera0)
 
+    /*
     uint8_t reg = INA226_CALIBRATION_REG;
     uint8_t buf[2];
     i2c_write(INA226_ADDR, 1, &reg, false);
@@ -91,8 +99,16 @@ int main(void)
     buffer[0] = ina226_read_voltage_raw();
     buffer[1] = ina226_read_current_raw();
     buffer[2] = ina226_read_power_raw();
-
-    while (1) { }
+    */
+    while (1) {
+        uint8_t buf[] = { 0x00, 0x20, 0x00, 0x21, 0, 0, 0x22, 0, 0 };
+        i2c_write(OLED_ADDR, 9, buf, true);
+        uint8_t buf_data[] = { 0x40, 0x01 };
+        i2c_write(OLED_ADDR, 2, buf_data, true);
+        __delay_cycles(16000000 / 2);
+        oled_clear_display();
+        __delay_cycles(16000000 / 2);
+    }
 }
 
 void system_init(void)
@@ -117,6 +133,33 @@ void unused_pins_init(void)
     P2OUT = 0x00;
 }
 
+void i2c_bus_recovery(void)
+{
+    P1SEL &= ~I2C_PIN_MASK;
+    P1SEL2 &= ~I2C_PIN_MASK;
+    P1DIR |= I2C_PIN_MASK; // Output
+    P1OUT |= I2C_PIN_MASK; // SCL=1, SDA=1
+
+    if (!(P1IN & SDA_PIN)) {
+        uint8_t i;
+        P1DIR &= ~SDA_PIN;
+        for (i = 0; i < 9; i++) {
+            P1OUT &= ~SCL_PIN;
+            __delay_cycles(40);
+            P1OUT |= SCL_PIN;
+            __delay_cycles(40);
+            if (P1IN & SDA_PIN)
+                break;
+        }
+
+        P1DIR |= SDA_PIN;
+        P1OUT &= ~SDA_PIN;
+        __delay_cycles(40);
+        P1OUT |= SDA_PIN;
+    }
+    __delay_cycles(160); // Stability
+}
+
 void i2c_init(void)
 {
     UCB0CTL1 |= UCSWRST;
@@ -128,6 +171,7 @@ void i2c_init(void)
     P1SEL |= BIT6 + BIT7;
     P1SEL2 |= BIT6 + BIT7;
     UCB0CTL1 &= ~UCSWRST;
+    __delay_cycles(160);
     UCB0I2CIE |= UCNACKIE; // enable NACK interrupt
 
     i2c.state = I2C_IDLE;
@@ -135,6 +179,17 @@ void i2c_init(void)
 
 void i2c_read(uint8_t addr, uint8_t byte_cnt, uint8_t *data, bool stop)
 {
+    if (i2c.state == I2C_IDLE) {
+        uint16_t timeout = 1000;
+        while ((UCB0STAT & UCBBUSY) && --timeout) {
+            __delay_cycles(160);
+        }
+        if (timeout == 0) {
+            i2c_bus_recovery();
+            i2c_init();
+            return;
+        }
+    }
     UCB0I2CSA = addr;
     i2c.byte_cnt = byte_cnt;
     i2c.pointer = data;
@@ -160,6 +215,17 @@ void i2c_read(uint8_t addr, uint8_t byte_cnt, uint8_t *data, bool stop)
 
 void i2c_write(uint8_t addr, uint8_t byte_cnt, uint8_t *data, bool stop)
 {
+    if (i2c.state == I2C_IDLE) {
+        uint16_t timeout = 1000;
+        while ((UCB0STAT & UCBBUSY) && --timeout) {
+            __delay_cycles(160);
+        }
+        if (timeout == 0) {
+            i2c_bus_recovery();
+            i2c_init();
+            return;
+        }
+    }
     UCB0I2CSA = addr;
     i2c.byte_cnt = byte_cnt;
     i2c.pointer = data;
@@ -286,6 +352,50 @@ int16_t ina226_read_power_raw(void)
     i2c_write(INA226_ADDR, 1, &reg, false);
     i2c_read(INA226_ADDR, 2, buf, true);
     return (((int16_t)buf[0] << 8) | buf[1]);
+}
+
+void oled_init(void)
+{
+    uint8_t buf[18] = {
+        0x00, // Control Byte
+        0xa8, 0x3f, // Set Multiplex Ratio
+        0xd3, 0x00, // Set Display Offset (0)
+        0x40, // Set Display Start Line (0)
+        0xa1, // Set Segment Re-map
+        0xc8, // Set COM Output Scan Direction
+        0xda, 0x12, // Set COM Pins Hardware Configuration
+        0x81, 0x7f, // Set Contrast Control
+        0xa4, // Set Normal Display
+        0xd5, 0x80, // Set Oscillator Frequency
+        0x8d, 0x14, // Charge Pump Setting: Enable
+        0xaf // Set Display ON
+    };
+    i2c_write(OLED_ADDR, 18, buf, true);
+}
+
+void oled_clear_display(void)
+{
+    uint8_t buf_command[9] = {
+        0x00, // Control Byte
+        0x20, // Set Memory Adressing Mode
+        0x00, // Horizontal Mode
+        0x21, // Set Column Address
+        0, // Start Column: 0
+        127, // End Column: 127
+        0x22, // Set Page Address
+        0, // Start Page: 0
+        7 // Stop Page: 7
+    };
+    uint8_t buf_clear[9] = { 0x40, // Data byte
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+    i2c_write(OLED_ADDR, 9, buf_command, true);
+
+    uint8_t i;
+    for (i = 0; i < 127; i++) {
+        i2c_write(OLED_ADDR, 9, buf_clear, false);
+    }
+    i2c_write(OLED_ADDR, 9, buf_clear, true);
 }
 
 #pragma vector = TIMER0_A0_VECTOR
