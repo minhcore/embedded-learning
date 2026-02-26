@@ -26,6 +26,8 @@
 
 #define INA226_CURRENT_REG (0x04)
 
+#define OLED_ADDR 0x3C
+
 typedef enum {
     I2C_IDLE,
     I2C_TX_DATA,
@@ -73,6 +75,7 @@ void ina226_set_mode(ina226_mode_t mode);
 int16_t ina226_read_voltage_raw(void);
 int16_t ina226_read_current_raw(void);
 int16_t ina226_read_power_raw(void);
+void oled_init(void);
 
 int main(void)
 {
@@ -80,8 +83,10 @@ int main(void)
     i2c_init();
     unused_pins_init();
     ina226_set_mode(INA226_MODE_150MA);
+    oled_init();
     __enable_interrupt(); // for system tick (timera0)
 
+    /*
     uint8_t reg = INA226_CALIBRATION_REG;
     uint8_t buf[2];
     i2c_write(INA226_ADDR, 1, &reg, false);
@@ -91,7 +96,7 @@ int main(void)
     buffer[0] = ina226_read_voltage_raw();
     buffer[1] = ina226_read_current_raw();
     buffer[2] = ina226_read_power_raw();
-
+    */
     while (1) { }
 }
 
@@ -286,6 +291,12 @@ int16_t ina226_read_power_raw(void)
     i2c_write(INA226_ADDR, 1, &reg, false);
     i2c_read(INA226_ADDR, 2, buf, true);
     return (((int16_t)buf[0] << 8) | buf[1]);
+}
+
+void oled_init(void)
+{
+    uint8_t buf[18] = { 0x00, 0xa8, 0x3f, 0xd3, 0x00, 0x40, 0xa1, 0xc8, 0xda, 0x12, 0x81, 0x7f, 0xa5, 0xd5, 0x80, 0x8d, 0x14, 0xaf };
+    i2c_write(OLED_ADDR, 18, buf, true);
 }
 
 #pragma vector = TIMER0_A0_VECTOR
