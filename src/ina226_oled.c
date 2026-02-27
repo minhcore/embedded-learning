@@ -61,9 +61,16 @@ const struct ina226_mode_config_s mode_table[] = {
     { 0xC800, 1 } // 30 mA
 };
 
+typedef enum {
+    OLED_STATE_DRAW,
+    OLED_STATE_CLEAR
+} oled_state_t;
+
+oled_state_t oled_state = OLED_STATE_DRAW;
+
 struct i2c_s i2c;
 volatile uint16_t system_tick;
-volatile uint16_t prev_system_tick;
+volatile uint16_t oled_prev_tick;
 volatile ina226_mode_t ina226_current_mode;
 
 void system_init(void);
@@ -78,6 +85,7 @@ int16_t ina226_read_current_raw(void);
 int16_t ina226_read_power_raw(void);
 void oled_init(void);
 void oled_clear_display(void);
+void oled_square_draw(void);
 
 int main(void)
 {
@@ -87,6 +95,7 @@ int main(void)
     unused_pins_init();
     // ina226_set_mode(INA226_MODE_150MA);
     oled_init();
+    oled_prev_tick = 0;
     __enable_interrupt(); // for system tick (timera0)
 
     /*
@@ -101,13 +110,19 @@ int main(void)
     buffer[2] = ina226_read_power_raw();
     */
     while (1) {
-        uint8_t buf[] = { 0x00, 0x20, 0x00, 0x21, 0, 0, 0x22, 0, 0 };
-        i2c_write(OLED_ADDR, 9, buf, true);
-        uint8_t buf_data[] = { 0x40, 0x01 };
-        i2c_write(OLED_ADDR, 2, buf_data, true);
-        __delay_cycles(16000000 / 2);
-        oled_clear_display();
-        __delay_cycles(16000000 / 2);
+        if (system_tick - oled_prev_tick >= 1000) {
+            oled_prev_tick = system_tick;
+            switch (oled_state) {
+            case OLED_STATE_DRAW:
+                oled_square_draw();
+                oled_state = OLED_STATE_CLEAR;
+                break;
+            case OLED_STATE_CLEAR:
+                oled_clear_display();
+                oled_state = OLED_STATE_DRAW;
+                break;
+            }
+        }
     }
 }
 
@@ -396,6 +411,24 @@ void oled_clear_display(void)
         i2c_write(OLED_ADDR, 9, buf_clear, false);
     }
     i2c_write(OLED_ADDR, 9, buf_clear, true);
+}
+
+void oled_square_draw(void)
+{
+    uint8_t command_buffer[] = {
+        0x00, // Command Byte
+        0x20, 0x00, // Set Memory Addressing Mode = Horizontal
+        0x21, 56,   71, // Set Columns Address (0~127)
+        0x22, 4,    5, // Set Page Address (0~7)
+    };
+    i2c_write(OLED_ADDR, 9, command_buffer, true);
+    uint8_t i;
+    uint8_t data_buffer[] = { 0x40, // Control Byte
+                              0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+    for (i = 0; i < 7; i++) {
+        i2c_write(OLED_ADDR, 9, data_buffer, false);
+    }
+    i2c_write(OLED_ADDR, 9, data_buffer, true);
 }
 
 #pragma vector = TIMER0_A0_VECTOR
