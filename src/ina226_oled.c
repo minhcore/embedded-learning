@@ -1,4 +1,5 @@
 #include <msp430g2553.h>
+#include "font8x16.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -86,6 +87,8 @@ int16_t ina226_read_power_raw(void);
 void oled_init(void);
 void oled_clear_display(void);
 void oled_square_draw(void);
+void oled_draw_char(uint8_t column, uint8_t page, char c);
+void oled_draw_string(uint8_t column, uint8_t page, char *str);
 
 int main(void)
 {
@@ -109,16 +112,23 @@ int main(void)
     buffer[1] = ina226_read_current_raw();
     buffer[2] = ina226_read_power_raw();
     */
+    oled_clear_display();
     while (1) {
-        if (system_tick - oled_prev_tick >= 1000) {
+        if (system_tick - oled_prev_tick >= 2000) {
             oled_prev_tick = system_tick;
             switch (oled_state) {
             case OLED_STATE_DRAW:
-                oled_square_draw();
+                oled_draw_string(10, 0, "I: 05.965 mA ");
+                oled_draw_string(10, 3, "V: 76.200 mV ");
+                oled_draw_string(10, 6, "P: 25.987 mW ");
+                // oled_square_draw();
                 oled_state = OLED_STATE_CLEAR;
                 break;
             case OLED_STATE_CLEAR:
-                oled_clear_display();
+                // oled_clear_display();
+                oled_draw_string(10, 0, "I: 10.872 mA ");
+                oled_draw_string(10, 3, "V: 54.007 mV ");
+                oled_draw_string(10, 6, "P: 29.323 mW ");
                 oled_state = OLED_STATE_DRAW;
                 break;
             }
@@ -429,6 +439,35 @@ void oled_square_draw(void)
         i2c_write(OLED_ADDR, 9, data_buffer, false);
     }
     i2c_write(OLED_ADDR, 9, data_buffer, true);
+}
+
+void oled_draw_char(uint8_t column, uint8_t page, char c)
+{
+    uint8_t command_buffer[] = {
+        0x00, // Command Byte
+        0x20, 0x00, // Set Memory Addressing Mode = Horizontal
+        0x21, column, column + 7, // Set Columns Address
+        0x22, page,   page + 1, // Set Page Address
+    };
+    i2c_write(OLED_ADDR, 9, command_buffer, true);
+
+    const uint8_t *glyph = font8x16_get_glyph(c);
+    if (glyph == NULL) {
+        return;
+    }
+    uint8_t data_buffer[17] = { 0x40,     glyph[0], glyph[1],  glyph[2],  glyph[3],  glyph[4],  glyph[5],  glyph[6], glyph[7],
+                                glyph[8], glyph[9], glyph[10], glyph[11], glyph[12], glyph[13], glyph[14], glyph[15] };
+    i2c_write(OLED_ADDR, 16, data_buffer, true);
+}
+
+void oled_draw_string(uint8_t column, uint8_t page, char *str)
+{
+    uint8_t new_column = column;
+    while (*str != '\0') {
+        oled_draw_char(new_column, page, *str);
+        new_column += 9;
+        str++;
+    }
 }
 
 #pragma vector = TIMER0_A0_VECTOR
