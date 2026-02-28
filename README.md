@@ -26,5 +26,10 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
   <img src="docs/mpu_6500_breadboard.jpg" height="400">
 </p>
 
+- [x] **06:** Reading U, I and P using INA226 and OLED 1306
+  <p align="center">
+  <img src="docs/ina226_oled1306_breadboard.jpg" width="650">
+</p>
+
 ---
 *Minh*
