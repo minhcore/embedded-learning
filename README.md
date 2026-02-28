@@ -28,7 +28,7 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 
 - [x] **06:** Reading U, I and P using INA226 and OLED 1306
   <p align="center">
-  <img src="docs/ina226_oled1306_breadboard.jpg" width="650">
+  <img src="docs/ina226_oled1306_breadboard_.jpg" width="650">
 </p>
 
 ---
