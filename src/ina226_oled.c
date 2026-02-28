@@ -569,7 +569,7 @@ void button_scan(void)
         if (button_mode_tick == 0) {
             button_mode_tick = system_tick;
         }
-        if (!button_mode_handled && (system_tick - button_mode_tick >= 15)) {
+        if (!button_mode_handled && (system_tick - button_mode_tick >= 75)) {
             switch (ina226_current_mode) {
             case INA226_MODE_800MA:
                 ina226_set_mode(INA226_MODE_150MA);
