@@ -6,6 +6,7 @@
 #define SCL_PIN BIT6
 #define SDA_PIN BIT7
 #define I2C_PIN_MASK (SCL_PIN | SDA_PIN)
+#define BUTTON_MODE_PIN BIT0
 
 #define INA226_ADDR 0x40
 
@@ -47,7 +48,8 @@ struct i2c_s
 
 typedef enum {
     INA226_MODE_800MA,
-    INA226_MODE_150MA
+    INA226_MODE_150MA,
+    INA226_MODE_65MA
 } ina226_mode_t;
 
 struct ina226_mode_config_s
@@ -59,7 +61,7 @@ struct ina226_mode_config_s
 const struct ina226_mode_config_s mode_table[] = {
     { 0x0800, 25 }, // 800 mA
     { 0x2800, 5 }, // 150 mA
-    { 0xC800, 1 } // 30 mA
+    { 0x6400, 2 }, // 65 mA
 };
 
 typedef enum {
@@ -73,6 +75,9 @@ struct i2c_s i2c;
 volatile uint16_t system_tick;
 volatile uint16_t oled_prev_tick;
 volatile ina226_mode_t ina226_current_mode;
+volatile bool force_redraw;
+volatile button_mode_tick;
+volatile bool button_mode_handled;
 
 void system_init(void);
 void unused_pins_init(void);
@@ -89,6 +94,10 @@ void oled_clear_display(void);
 void oled_square_draw(void);
 void oled_draw_char(uint8_t column, uint8_t page, char c);
 void oled_draw_string(uint8_t column, uint8_t page, char *str);
+void int_to_char(uint16_t num, char *str, uint8_t width, char pad);
+void system_process(void);
+void button_init(void);
+void button_scan(void);
 
 int main(void)
 {
@@ -96,42 +105,22 @@ int main(void)
     // i2c_bus_recovery();
     i2c_init();
     unused_pins_init();
-    // ina226_set_mode(INA226_MODE_150MA);
+    button_init();
+    ina226_set_mode(INA226_MODE_800MA);
     oled_init();
+    oled_clear_display();
     oled_prev_tick = 0;
+    force_redraw = false;
+
     __enable_interrupt(); // for system tick (timera0)
 
-    /*
-    uint8_t reg = INA226_CALIBRATION_REG;
-    uint8_t buf[2];
-    i2c_write(INA226_ADDR, 1, &reg, false);
-    i2c_read(INA226_ADDR, 2, buf, true);
-
-    int16_t buffer[3];
-    buffer[0] = ina226_read_voltage_raw();
-    buffer[1] = ina226_read_current_raw();
-    buffer[2] = ina226_read_power_raw();
-    */
-    oled_clear_display();
     while (1) {
-        if (system_tick - oled_prev_tick >= 2000) {
+        button_scan();
+
+        if ((system_tick - oled_prev_tick >= 1000) || force_redraw) {
             oled_prev_tick = system_tick;
-            switch (oled_state) {
-            case OLED_STATE_DRAW:
-                oled_draw_string(10, 0, "I: 05.965 mA ");
-                oled_draw_string(10, 3, "V: 76.200 mV ");
-                oled_draw_string(10, 6, "P: 25.987 mW ");
-                // oled_square_draw();
-                oled_state = OLED_STATE_CLEAR;
-                break;
-            case OLED_STATE_CLEAR:
-                // oled_clear_display();
-                oled_draw_string(10, 0, "I: 10.872 mA ");
-                oled_draw_string(10, 3, "V: 54.007 mV ");
-                oled_draw_string(10, 6, "P: 29.323 mW ");
-                oled_state = OLED_STATE_DRAW;
-                break;
-            }
+            system_process();
+            force_redraw = false;
         }
     }
 }
@@ -467,6 +456,137 @@ void oled_draw_string(uint8_t column, uint8_t page, char *str)
         oled_draw_char(new_column, page, *str);
         new_column += 9;
         str++;
+    }
+}
+
+void int_to_char(uint16_t num, char *str, uint8_t width, char pad)
+{
+    int8_t i;
+    for (i = 0; i < width; i++) {
+        str[i] = pad;
+    }
+
+    i = width - 1;
+    do {
+        str[i--] = '0' + (num % 10);
+        num /= 10;
+    } while (num > 0 && i >= 0);
+}
+
+void system_process(void)
+{
+    int16_t voltage_raw = ina226_read_voltage_raw();
+    int16_t current_raw = ina226_read_current_raw();
+    int16_t power_raw = ina226_read_power_raw();
+
+    int32_t voltage_mv = (int32_t)voltage_raw * 125 / 100;
+    int32_t current_ua = (int32_t)current_raw * mode_table[ina226_current_mode].lsb_ua;
+    int32_t power_uw = (int32_t)power_raw * mode_table[ina226_current_mode].lsb_ua * 25;
+
+    int16_t voltage_int_part = voltage_mv / 1000; // V
+    int16_t voltage_fraction_part = voltage_mv % 1000; // .xxx
+
+    int16_t current_int_part = current_ua / 1000; // mA
+    int16_t current_fraction_part = current_ua % 1000; // .xxx
+
+    int16_t power_int_part;
+    int16_t power_fraction_part;
+    bool power_w_unit = false;
+    if (power_uw >= 1000000) {
+        power_int_part = power_uw / 1000000; // W
+        power_fraction_part = (power_uw % 1000000) / 1000; // .xxx
+        power_w_unit = true;
+    } else {
+        power_int_part = power_uw / 1000; // mW
+        power_fraction_part = power_uw % 1000; // .xxx
+    }
+
+    char v_buffer[13];
+    v_buffer[0] = 'U';
+    v_buffer[1] = ':';
+    v_buffer[2] = ' ';
+    int_to_char(voltage_int_part, v_buffer + 3, 3, ' ');
+    v_buffer[6] = '.';
+    int_to_char(voltage_fraction_part, v_buffer + 7, 3, '0');
+    v_buffer[10] = ' ';
+    v_buffer[11] = 'V';
+    v_buffer[12] = '\0';
+
+    char i_buffer[14];
+    i_buffer[0] = 'I';
+    i_buffer[1] = ':';
+    i_buffer[2] = ' ';
+    int_to_char(current_int_part, i_buffer + 3, 3, ' ');
+    i_buffer[6] = '.';
+    int_to_char(current_fraction_part, i_buffer + 7, 3, '0');
+    i_buffer[10] = ' ';
+    i_buffer[11] = 'm';
+    i_buffer[12] = 'A';
+    i_buffer[13] = '\0';
+
+    char p_buffer[14];
+    p_buffer[0] = 'P';
+    p_buffer[1] = ':';
+    p_buffer[2] = ' ';
+    int_to_char(power_int_part, p_buffer + 3, 3, ' ');
+    p_buffer[6] = '.';
+    int_to_char(power_fraction_part, p_buffer + 7, 3, '0');
+    p_buffer[10] = ' ';
+    if (power_w_unit) {
+        p_buffer[11] = 'W';
+        p_buffer[12] = ' ';
+        p_buffer[13] = '\0';
+    } else {
+        p_buffer[11] = 'm';
+        p_buffer[12] = 'W';
+        p_buffer[13] = '\0';
+    }
+
+    oled_draw_string(10, 0, v_buffer);
+    oled_draw_string(10, 2, i_buffer);
+    oled_draw_string(10, 4, p_buffer);
+    switch (ina226_current_mode) {
+    case INA226_MODE_150MA:
+        oled_draw_string(10, 6, "Mode: 150 mA");
+        break;
+    case INA226_MODE_800MA:
+        oled_draw_string(10, 6, "Mode: 800 mA");
+        break;
+    case INA226_MODE_65MA:
+        oled_draw_string(10, 6, "Mode: 65 mA ");
+    }
+}
+
+void button_init(void)
+{
+    P2DIR &= ~BUTTON_MODE_PIN; // input
+    button_mode_handled = false;
+}
+
+void button_scan(void)
+{
+    if (!(P2IN & BUTTON_MODE_PIN)) {
+        if (button_mode_tick == 0) {
+            button_mode_tick = system_tick;
+        }
+        if (!button_mode_handled && (system_tick - button_mode_tick >= 15)) {
+            switch (ina226_current_mode) {
+            case INA226_MODE_800MA:
+                ina226_set_mode(INA226_MODE_150MA);
+                break;
+            case INA226_MODE_150MA:
+                ina226_set_mode(INA226_MODE_65MA);
+                break;
+            case INA226_MODE_65MA:
+                ina226_set_mode(INA226_MODE_800MA);
+                break;
+            }
+            force_redraw = true;
+            button_mode_handled = true;
+        }
+    } else {
+        button_mode_tick = 0;
+        button_mode_handled = false;
     }
 }
 
