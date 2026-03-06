@@ -179,8 +179,8 @@ void i2c_init(void)
     UCB0CTL1 |= UCSWRST;
     UCB0CTL0 |= UCMST + UCMODE_3; // master mode and i2c mode
     UCB0CTL1 |= UCSSEL_3; // SMCLK
-    // 16 MHz / 40 = 400 KHz (fast mode)
-    UCB0BR0 = 40;
+    // 16 MHz / 160 = 100 KHz
+    UCB0BR0 = 160;
     UCB0BR1 = 0;
     P1SEL |= BIT6 + BIT7;
     P1SEL2 |= BIT6 + BIT7;

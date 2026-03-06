@@ -31,5 +31,7 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
   <img src="msp430/docs/ina226_oled1306_breadboard_.jpg" width="650">
 </p>
 
+## STM32 Learning Log
+- [x] **01:** Blinking LED
 ---
 *Minh*
