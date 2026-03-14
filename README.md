@@ -31,7 +31,7 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
   <img src="msp430/docs/ina226_oled1306_breadboard_.jpg" width="650">
 </p>
 
-- [x] **07:** Protyping INA226, OLED 1306 and MSP430G2553 on perfboard
+- [x] **07:** Power monitoring prototype using INA226, SSD1306 OLED, and MSP430G2553 on perfboard
   <p align="center">
   <img src="msp430/docs/ina226_oled_prototype.jpg" width="650">
 </p>
