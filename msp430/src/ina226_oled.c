@@ -59,9 +59,9 @@ struct ina226_mode_config_s
 };
 
 const struct ina226_mode_config_s mode_table[] = {
-    { 0x06D1, 25 }, // 800 mA
-    { 0x230A, 5 }, // 150 mA
-    { 0x57C7, 2 }, // 65 mA
+    { 0x0685, 26 }, // 800 mA
+    { 0x2072, 5 }, // 150 mA
+    { 0x555C, 2 }, // 65 mA
 };
 
 typedef enum {
