@@ -39,5 +39,6 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 
 ## STM32 Learning Log
 - [x] **01:** Blinking LED
+- [x] **02** Using HAL to make a simple FSM PWM output controlling LED
 ---
 *Minh*
