@@ -44,6 +44,6 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 - [x] **04** External Interrupt Lab
 - [x] **05** Timers: Timer Mode + Interrupt
 - [x] **06** Timers: Counter Mode (Using button to count)
-- [x] **07** Timers: Using input capture mode to decode IR signals (helicopter's toy)
+- [x] **07** Timers: Using input capture mode to decode IR signals (helicopter toy)
 ---
 *Minh*
