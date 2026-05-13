@@ -47,5 +47,6 @@ This repo contains my raw code, failed experiments, and notes as I try to unders
 - [x] **07** Timers: Using input capture mode to decode IR signals (helicopter toy)
 - [x] **08** Timers: PWM for motor A and motor B (helicopter)
 - [x] **09** IR signal controls PWM for 3 motors (helicopter)
+- [x] **10** Reading gyro value from mpu sensor (for helicopter yaw logic)
 ---
 *Minh*
