@@ -2,12 +2,18 @@
 
 int main(void)
 {
+	button_init();
 	led_init();
+	led_off();
 	while(1)
 	{
-		led_on();
-		for(int i = 0; i < 5000000; i++) {}
-		led_off();
-		for(int i = 0; i < 5000000; i++) {}
+		if (get_btn_state())
+		{
+			led_on();
+		}
+		else
+		{
+			led_off();
+		}
 	}
 }

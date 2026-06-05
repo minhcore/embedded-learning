@@ -1,8 +1,19 @@
 #include "gpio.h"
 
 #define GPIOAEN				(1U<<0)
+#define GPIOCEN				(1U<<2)
 #define LED_BS5				(1U<<5) // Bit Set Pin 5
 #define LED_BR5				(1U<<21) // Bit Reset Pin 5
+#define BTN_PIN				(1U<<13)
+
+void button_init(void)
+{
+	// Enable clock access to GPIOC
+	RCC->AHB1ENR |= GPIOCEN;
+	// Set PC13 to input mode
+	GPIOC->MODER &=~(1U<<26);
+	GPIOC->MODER &=~(1U<<27);
+}
 
 void led_init(void)
 {
@@ -23,3 +34,15 @@ void led_off(void)
 	GPIOA->BSRR |= LED_BR5;
 }
 
+bool get_btn_state(void)
+{
+	// Button is active low
+	if(GPIOC->IDR & BTN_PIN)
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
