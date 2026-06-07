@@ -9,5 +9,6 @@
 void uart_init(uint32_t baudrate);
 void uart_write_char(char c);
 void uart_write_string(char* c);
+void uart_write_int(int32_t number);
 
 #endif
